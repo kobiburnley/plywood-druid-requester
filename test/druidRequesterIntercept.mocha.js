@@ -156,9 +156,9 @@ describe("Druid requester static data source", function() {
       .done();
   });
 
-  it("works with simple headers POST (async)", (testComplete) => {
+  it("works with simple headers POST (async)", () => {
     var druidRequester = druidRequesterFactory({
-      host: 'a.druid.host',
+      host: ['a.druid.host', 'b.druid.host'],
       requestDecorator: () => {
         return Q.delay(30).then(() => {
           return {
@@ -171,33 +171,47 @@ describe("Druid requester static data source", function() {
       }
     });
 
-    nock('http://a.druid.host:8082', {
-      reqheaders: {
-        'authorization': 'Basic Auth',
-        'X-My-Headers': 'My Header value'
-      }
-    })
-      .post('/druid/v2/', {
-        "queryType": "topN",
-        "dataSource": 'dsz'
+    ['http://a.druid.host:8082', 'http://b.druid.host:8082'].forEach(url => {
+      nock(url, {
+        reqheaders: {
+          'authorization': 'Basic Auth',
+          'X-My-Headers': 'My Header value'
+        }
       })
-      .reply(200, {
-        lol: 'data'
-      });
-
-    druidRequester({
-      query: {
-        "queryType": "topN",
-        "dataSource": 'dsz'
-      }
-    })
-      .then((res) => {
-        expect(res).to.deep.equal({
+        .post('/druid/v2/', {
+          "queryType": "topN",
+          "dataSource": 'dsz'
+        })
+        .reply(200, {
           lol: 'data'
         });
-        testComplete();
+
+    });
+
+    Promise.all([
+      druidRequester({
+        query: {
+          "queryType": "topN",
+          "dataSource": 'dsz'
+        }
       })
-      .done();
+        .then((res) => {
+          expect(res).to.deep.equal({
+            lol: 'data'
+          });
+        }),
+      druidRequester({
+        query: {
+          "queryType": "topN",
+          "dataSource": 'dsz'
+        }
+      })
+        .then((res) => {
+          expect(res).to.deep.equal({
+            lol: 'data'
+          });
+        })
+    ])
   });
 
   it("formats plain error", (testComplete) => {

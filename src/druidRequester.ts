@@ -23,7 +23,7 @@ import * as Q from 'q-tsc';
 
 export interface DruidRequesterParameters {
   locator?: Locator.PlywoodLocator;
-  host?: string;
+  host?: string | string[];
   timeout?: number;
   urlBuilder?: DruidUrlBuilder;
   requestDecorator?: DruidRequestDecorator;
@@ -134,25 +134,33 @@ function failIfNoDatasource(url: string, query: any, timeout: number): Q.Promise
 }
 
 export function druidRequesterFactory(parameters: DruidRequesterParameters): Requester.PlywoodRequester<any> {
-  var { locator, host, timeout, urlBuilder, requestDecorator } = parameters;
-  if (!locator) {
+  var {locator, host, timeout, urlBuilder, requestDecorator} = parameters;
+  let locators: Locator.PlywoodLocator[]
+  if (locator) {
+    locators = [locator]
+  } else {
     if (!host) throw new Error("must have a `host` or a `locator`");
-    locator = basicLocator(host);
+    const hosts: string[] = typeof host === "string" ? [host] : host
+    locators = hosts.map(host => basicLocator(host))
   }
   if (!urlBuilder) {
     urlBuilder = basicUrlBuilder;
   }
 
+  let next = 0
+  const length = locators.length
+  const nextLocator = () => locators[next = (next + 1) % length]
+
   return (req): Q.Promise<any> => {
     var context = req.context || {};
     var query = req.query;
-    var { queryType, intervals } = query;
+    var {queryType, intervals} = query;
     if (intervals === "1000-01-01/1000-01-02") {
       return Q([]);
     }
 
     var url: string;
-    return locator()
+    return nextLocator()()
       .then((location) => {
         if (timeout != null) {
           query.context || (query.context = {});
@@ -160,6 +168,7 @@ export function druidRequesterFactory(parameters: DruidRequesterParameters): Req
         }
 
         url = urlBuilder(location);
+        console.log('druid request:', url)
         var options: request.Options;
         if (queryType === "status") {
           options = {
@@ -237,7 +246,7 @@ export function druidRequesterFactory(parameters: DruidRequesterParameters): Req
 
         if (queryType === "introspect") {
           if (Array.isArray(body.dimensions) && !body.dimensions.length &&
-              Array.isArray(body.metrics) && !body.metrics.length) {
+            Array.isArray(body.metrics) && !body.metrics.length) {
 
             return failIfNoDatasource(url, query, timeout).then((): any => {
               err = new Error("Can not use GET route, data is probably in a real-time node or more than a two weeks old. Try segmentMetadata instead.");
