@@ -168,7 +168,6 @@ export function druidRequesterFactory(parameters: DruidRequesterParameters): Req
         }
 
         url = urlBuilder(location);
-        console.log('druid request:', url)
         var options: request.Options;
         if (queryType === "status") {
           options = {
@@ -201,7 +200,7 @@ export function druidRequesterFactory(parameters: DruidRequesterParameters): Req
             method: options.method,
             url: options.url,
             query
-          }, context['decoratorContext']);
+          } as any, context['decoratorContext']);
 
           if (decorationPromise) {
             return Q(decorationPromise).then((decoration: Decoration) => {
